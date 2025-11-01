@@ -1,0 +1,1 @@
+# vaultmesh-architecture-scaffold
