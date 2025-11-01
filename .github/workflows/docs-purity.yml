@@ -1,0 +1,140 @@
+name: Docs Purity
+
+on:
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'docs/**'
+      - '**.md'
+  push:
+    branches: [main, master]
+    paths:
+      - 'docs/**'
+      - '**.md'
+
+jobs:
+  docs-validation:
+    runs-on: ubuntu-latest
+    name: Validate Documentation Quality
+    permissions:
+      contents: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check markdown files exist
+        run: |
+          echo "Checking for documentation files..."
+          md_count=$(find docs -name "*.md" 2>/dev/null | wc -l)
+          
+          if [ $md_count -eq 0 ]; then
+            echo "⚠️  No markdown files found in docs/"
+            exit 1
+          fi
+          
+          echo "✓ Found $md_count markdown file(s)"
+
+      - name: Validate markdown syntax
+        run: |
+          echo "Validating markdown files..."
+          
+          errors=0
+          while IFS= read -r file; do
+            echo "Checking $file..."
+            
+            # Check for proper heading hierarchy
+            if grep -E "^#{5,}" "$file" > /dev/null 2>&1; then
+              echo "⚠️  $file: Contains headings deeper than ####"
+            fi
+            
+            # Check for non-empty files
+            if [ ! -s "$file" ]; then
+              echo "❌ $file: File is empty"
+              errors=$((errors + 1))
+            fi
+            
+          done < <(find . -name "*.md" -not -path "./.git/*")
+          
+          if [ $errors -gt 0 ]; then
+            echo "❌ Found $errors error(s) in markdown files"
+            exit 1
+          fi
+          
+          echo "✓ Markdown syntax validation passed"
+
+      - name: Check for broken internal links
+        run: |
+          echo "Checking for broken internal links..."
+          
+          broken_links=0
+          while IFS= read -r file; do
+            # Extract markdown links [text](path)
+            while IFS= read -r link; do
+              # Skip external links (http/https)
+              if [[ "$link" =~ ^https?:// ]]; then
+                continue
+              fi
+              
+              # Skip anchors
+              if [[ "$link" =~ ^# ]]; then
+                continue
+              fi
+              
+              # Check if file exists (relative to current file)
+              dir=$(dirname "$file")
+              target="$dir/$link"
+              
+              if [ ! -f "$target" ] && [ ! -d "$target" ]; then
+                echo "⚠️  $file: Potential broken link to $link"
+                broken_links=$((broken_links + 1))
+              fi
+            done < <(grep -oP '\]\(\K[^)]+' "$file" 2>/dev/null || true)
+          done < <(find . -name "*.md" -not -path "./.git/*")
+          
+          if [ $broken_links -gt 0 ]; then
+            echo "⚠️  Found $broken_links potential broken link(s)"
+            echo "Please verify all links are correct"
+          else
+            echo "✓ No broken internal links detected"
+          fi
+
+      - name: Check documentation completeness
+        run: |
+          echo "Checking documentation completeness..."
+          
+          required_docs=("docs/README.md" "README.md")
+          
+          for doc in "${required_docs[@]}"; do
+            if [ ! -f "$doc" ]; then
+              echo "❌ Missing required documentation: $doc"
+              exit 1
+            fi
+            echo "✓ Found: $doc"
+          done
+          
+          echo "✓ Documentation completeness check passed"
+
+      - name: Check for documentation standards
+        run: |
+          echo "Checking documentation standards..."
+          
+          while IFS= read -r file; do
+            # Check if file has a title (# heading)
+            if ! grep -qE "^# " "$file"; then
+              echo "⚠️  $file: Missing top-level heading"
+            fi
+            
+            # Check for trailing whitespace
+            if grep -qE " +$" "$file"; then
+              echo "⚠️  $file: Contains trailing whitespace"
+            fi
+          done < <(find . -name "*.md" -not -path "./.git/*")
+          
+          echo "✓ Documentation standards check complete"
+
+      - name: Docs purity summary
+        run: |
+          echo "================================"
+          echo "Docs Purity Check: COMPLETE ✓"
+          echo "================================"

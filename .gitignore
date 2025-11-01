@@ -1,0 +1,41 @@
+# Generated files and snapshots
+receipts/revocations/
+
+# Build artifacts
+*.pyc
+__pycache__/
+*.class
+*.jar
+*.war
+*.so
+*.dylib
+*.dll
+*.exe
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Node modules
+node_modules/
+
+# Python virtual environments
+venv/
+env/
+.env
+
+# Reports (generated)
+reports/*.html
+reports/*.pdf
+reports/*.json
+!reports/README.md
+
+# Logs
+*.log

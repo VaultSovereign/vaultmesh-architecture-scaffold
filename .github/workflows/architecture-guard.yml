@@ -1,0 +1,86 @@
+name: Architecture Guard
+
+on:
+  pull_request:
+    branches: [main, master]
+    paths:
+      - 'docs/**'
+      - 'manifests/**'
+      - 'runbooks/**'
+      - 'scripts/**'
+  push:
+    branches: [main, master]
+    paths:
+      - 'docs/**'
+      - 'manifests/**'
+      - 'runbooks/**'
+      - 'scripts/**'
+
+jobs:
+  architecture-validation:
+    runs-on: ubuntu-latest
+    name: Validate Architecture Integrity
+    permissions:
+      contents: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check directory structure
+        run: |
+          echo "Validating required directories exist..."
+          required_dirs=("docs" "runbooks" "manifests" "receipts" "reports" "scripts/ops" "audits")
+          for dir in "${required_dirs[@]}"; do
+            if [ ! -d "$dir" ]; then
+              echo "❌ Missing required directory: $dir"
+              exit 1
+            fi
+            echo "✓ Found: $dir"
+          done
+
+      - name: Validate documentation structure
+        run: |
+          echo "Checking documentation files..."
+          if [ ! -f "docs/README.md" ]; then
+            echo "❌ Missing docs/README.md"
+            exit 1
+          fi
+          echo "✓ Documentation structure is valid"
+
+      - name: Check for architectural violations
+        run: |
+          echo "Scanning for architectural violations..."
+          
+          # Check for hardcoded secrets patterns
+          if grep -r -E "(password|secret|api[_-]?key|token)\\s*=\\s*[\"'][^\"']{8,}" . \
+            --exclude-dir=.git \
+            --exclude-dir=node_modules \
+            --exclude="*.md" 2>/dev/null; then
+            echo "❌ Potential hardcoded secrets detected"
+            exit 1
+          fi
+          
+          echo "✓ No architectural violations detected"
+
+      - name: Validate manifest files
+        run: |
+          echo "Validating manifest files..."
+          if [ -d "manifests" ]; then
+            # Check for valid YAML if any exist
+            for yaml_file in manifests/*.yaml manifests/*.yml 2>/dev/null; do
+              if [ -f "$yaml_file" ]; then
+                echo "Checking $yaml_file"
+                python3 -c "import yaml; yaml.safe_load(open('$yaml_file'))" || exit 1
+              fi
+            done
+          fi
+          echo "✓ Manifest validation complete"
+
+      - name: Architecture guard summary
+        run: |
+          echo "================================"
+          echo "Architecture Guard: PASSED ✓"
+          echo "================================"
