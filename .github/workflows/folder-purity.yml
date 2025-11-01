@@ -1,0 +1,115 @@
+name: Folder Purity
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+jobs:
+  folder-purity-check:
+    runs-on: ubuntu-latest
+    name: Validate Folder Organization
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for unauthorized files
+        run: |
+          echo "Checking for unauthorized files in directories..."
+          
+          # Define allowed file extensions per directory
+          declare -A folder_rules
+          folder_rules[docs]=".md .png .jpg .svg .pdf"
+          folder_rules[manifests]=".yaml .yml .json .toml"
+          folder_rules[runbooks]=".md .sh .yaml .yml"
+          folder_rules[scripts]=".sh .py .js .go .rb"
+          folder_rules[receipts]=".json .yaml .yml .txt .log"
+          folder_rules[reports]=".md .html .pdf .json .csv"
+          folder_rules[audits]=".md .json .log .pdf"
+          
+          # Allow README.md in all folders
+          violations=0
+          
+          for dir in "${!folder_rules[@]}"; do
+            if [ -d "$dir" ]; then
+              echo "Checking $dir/..."
+              allowed="${folder_rules[$dir]}"
+              
+              # Find files, excluding README.md and .gitkeep
+              while IFS= read -r file; do
+                filename=$(basename "$file")
+                
+                # Skip README.md and .gitkeep
+                if [[ "$filename" == "README.md" ]] || [[ "$filename" == ".gitkeep" ]]; then
+                  continue
+                fi
+                
+                # Check if file extension is allowed
+                ext="${filename##*.}"
+                if [[ "$filename" == *.* ]]; then
+                  ext=".$ext"
+                else
+                  ext=""
+                fi
+                
+                if [[ ! " $allowed " =~ " $ext " ]]; then
+                  echo "⚠️  Potential violation: $file (extension: $ext not in allowed list)"
+                  violations=$((violations + 1))
+                fi
+              done < <(find "$dir" -type f)
+            fi
+          done
+          
+          if [ $violations -gt 0 ]; then
+            echo ""
+            echo "⚠️  Found $violations potential folder purity violations"
+            echo "Please ensure files are in the correct directories with appropriate extensions"
+            echo "This is a warning only - review changes carefully"
+          else
+            echo "✓ All folders maintain proper organization"
+          fi
+
+      - name: Check for nested depth violations
+        run: |
+          echo "Checking directory depth..."
+          max_depth=5
+          
+          while IFS= read -r dir; do
+            depth=$(echo "$dir" | tr -cd '/' | wc -c)
+            if [ $depth -gt $max_depth ]; then
+              echo "⚠️  Directory too deep (depth: $depth): $dir"
+              echo "Consider flattening directory structure"
+            fi
+          done < <(find . -type d -not -path "./.git/*")
+          
+          echo "✓ Directory depth check complete"
+
+      - name: Verify no binary artifacts
+        run: |
+          echo "Checking for unexpected binary files..."
+          
+          # Common binary extensions to warn about
+          binary_exts="exe dll so dylib class jar war"
+          found_binaries=0
+          
+          for ext in $binary_exts; do
+            if find . -name "*.$ext" -not -path "./.git/*" | grep -q .; then
+              echo "⚠️  Found .$ext files:"
+              find . -name "*.$ext" -not -path "./.git/*"
+              found_binaries=1
+            fi
+          done
+          
+          if [ $found_binaries -eq 0 ]; then
+            echo "✓ No unexpected binary files found"
+          else
+            echo "⚠️  Binary files detected - ensure they are necessary"
+          fi
+
+      - name: Folder purity summary
+        run: |
+          echo "================================"
+          echo "Folder Purity Check: COMPLETE ✓"
+          echo "================================"
