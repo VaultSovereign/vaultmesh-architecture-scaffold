@@ -16,6 +16,8 @@ jobs:
   docs-validation:
     runs-on: ubuntu-latest
     name: Validate Documentation Quality
+    permissions:
+      contents: read
     
     steps:
       - name: Checkout code

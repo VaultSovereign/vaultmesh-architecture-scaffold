@@ -20,6 +20,8 @@ jobs:
   architecture-validation:
     runs-on: ubuntu-latest
     name: Validate Architecture Integrity
+    permissions:
+      contents: read
     
     steps:
       - name: Checkout code

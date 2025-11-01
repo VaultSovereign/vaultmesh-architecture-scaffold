@@ -10,6 +10,8 @@ jobs:
   folder-purity-check:
     runs-on: ubuntu-latest
     name: Validate Folder Organization
+    permissions:
+      contents: read
     
     steps:
       - name: Checkout code
